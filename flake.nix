@@ -13,8 +13,27 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
-      equicord = pkgs.equicord.overrideAttrs (old: {
+      equicordVersion = "2026-10-08";
+      equicord = pkgs.equicord.overrideAttrs (old: rec {
         pname = "equicord-caelestia";
+        version = equicordVersion;
+        src = pkgs.fetchFromGitHub {
+          owner = "Equicord";
+          repo = "Equicord";
+          tag = version;
+          hash = "sha256-38mMUaDgS0nYwrW2WceQmuHDJk1vFU1PEi7HWvNxiZk=";
+        };
+        pnpmDeps = pkgs.fetchPnpmDeps {
+          pname = "equicord";
+          inherit version src;
+          pnpm = pkgs.pnpm_10;
+          fetcherVersion = 3;
+          hash = "sha256-rx8z6PAlAPaZbkmg+3Vvq8OXR/yy5ZP0PmAk97ZDOSQ=";
+        };
+        env = (old.env or {}) // {
+          EQUICORD_HASH = version;
+          EQUICORD_REMOTE = "Equicord/Equicord";
+        };
         postPatch = (old.postPatch or "") + ''
           # Equibop loads this Equicord payload, so inject the same plugin
           # source used by the shared Caelestia Discord-client integration.
