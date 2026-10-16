@@ -17,9 +17,18 @@
         pname = "equicord-caelestia";
         postPatch = (old.postPatch or "") + ''
           # Equibop loads this Equicord payload, so inject the same plugin
-          # source used by the Caelestia/Vesktop integration.
+          # source used by the shared Caelestia Discord-client integration.
           mkdir -p src/userplugins/caelestiaVoice
           cp -r ${caelestia-shell}/integrations/vencord/caelestiaVoice/. src/userplugins/caelestiaVoice/
+
+          # Quickshell can close its probe socket before the initial snapshot
+          # is written. Handle that normal disconnect instead of crashing the
+          # Electron main process with an uncaught EPIPE.
+          substituteInPlace src/userplugins/caelestiaVoice/bridge.ts \
+            --replace-fail \
+              '        socket.write(`''${JSON.stringify(message)}\n`);' \
+              '        socket.on("error", () => socket.destroy());
+        if (!socket.destroyed) socket.write(`''${JSON.stringify(message)}\n`);'
         '';
       });
       equibop = pkgs.callPackage ./nix/equibop.nix {

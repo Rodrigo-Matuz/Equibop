@@ -3,11 +3,11 @@
     "caelestia-shell": {
       "flake": false,
       "locked": {
-        "lastModified": 1792085062,
-        "narHash": "sha256-Q7iIfUbWRGYoDeqH9pAy6tHibqcKm3wefFNHe81q4og=",
+        "lastModified": 1792170212,
+        "narHash": "sha256-khOw3jLIu/yRRHFD0OcHFT7Xk1GM3PqI64nEX+7H3As=",
         "owner": "Rodrigo-Matuz",
         "repo": "shell",
-        "rev": "b96f5645b1c4a497e47623cfb6b65f335334e62d",
+        "rev": "5b659baccc54a130283a45f482e078f6c8b74675",
         "type": "github"
       },
       "original": {
