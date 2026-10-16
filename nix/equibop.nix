@@ -1,0 +1,212 @@
+{
+  lib,
+  stdenv,
+  callPackage,
+  makeWrapper,
+  makeDesktopItem,
+  copyDesktopItems,
+  electron_43,
+  python3Packages,
+  pipewire,
+  libpulseaudio,
+  jq,
+  autoPatchelfHook,
+  bun,
+  nodejs,
+  equicord,
+  src,
+  version ? "3.3.1",
+  withTTS ? true,
+  withMiddleClickScroll ? false,
+}:
+let
+  electron = electron_43;
+in
+stdenv.mkDerivation (finalAttrs: {
+  pname = "equibop";
+  inherit version src;
+
+  postPatch = ''
+    substituteInPlace scripts/build/build.mts \
+      --replace-fail \
+        'gitHash = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();' \
+        'gitHash = "nix-${finalAttrs.version}";'
+
+    # disable auto updates
+    substituteInPlace src/main/updater.ts \
+      --replace-fail 'const isOutdated = autoUpdater.checkForUpdates().then(res => Boolean(res?.isUpdateAvailable));' 'const isOutdated = false;'
+
+    # disable auto update for bun
+    substituteInPlace scripts/build/compileArrpc.mts \
+      --replace-fail -baseline ""
+
+    # Pin the Equicord payload into the immutable Nix closure instead of
+    # downloading the moving latest release at first launch.
+    substituteInPlace src/main/vencordDir.ts \
+      --replace-fail \
+        'join(SESSION_DATA_DIR, "equicord.asar")' \
+        '"${equicord}/equibop.asar"'
+
+    # Prevent repair/update code from attempting to overwrite the Nix store.
+    substituteInPlace src/main/utils/vencordLoader.ts \
+      --replace-fail \
+        'export async function downloadVencordAsar() {
+    await downloadFile(
+        "https://github.com/Equicord/Equicord/releases/latest/download/equibop.asar",
+        VENCORD_DIR,
+        {},
+        { retryOnNetworkError: true }
+    );
+}' \
+        'export async function downloadVencordAsar() {
+    throw new Error("Equicord is pinned by Nix");
+}'
+
+    substituteInPlace src/main/mainWindow.ts \
+      --replace-fail \
+        'label: "Force Update Equicord",' \
+        'label: "Equicord is pinned by Nix", enabled: false,'
+  '';
+
+  node-modules = callPackage ./node-modules.nix { equibop = finalAttrs.finalPackage; }; # helps when the parent package is overidden
+
+  nativeBuildInputs = [
+    bun
+    jq
+    nodejs
+    # XXX: Equibop *does not* ship venmic as a prebuilt node module. The package
+    # seems to build with or without this hook, but I (NotAShelf) don't have the
+    # time to test the consequences of removing this hook. Please open a pull
+    # request if this bothers you in some way.
+    autoPatchelfHook
+    copyDesktopItems
+    # we use a script wrapper here for environment variable expansion at runtime
+    # https://github.com/NixOS/nixpkgs/issues/172583
+    makeWrapper
+  ];
+
+  buildInputs = [
+    libpulseaudio
+    pipewire
+    (lib.getLib stdenv.cc.cc)
+  ];
+
+  configurePhase = ''
+    runHook preConfigure
+
+    cp -R ${finalAttrs.node-modules} node_modules
+
+    runHook postConfigure
+  '';
+
+  preBuild = ''
+    # Validate electron version matches upstream package.json
+    if [ "`jq -r '.devDependencies.electron' < package.json | cut -d. -f1 | tr -d '^'`" != "${lib.versions.major electron.version}" ]
+    then
+      echo "ERROR: electron version mismatch between package.json and nixpkgs"
+      exit 1
+    fi
+
+    # electron builds must be writable to support electron fuses
+    cp -r ${electron.dist} electron-dist
+    chmod -R u+w electron-dist
+  '';
+
+  buildPhase = ''
+    runHook preBuild
+
+    bun run build
+
+    bun run compileArrpc
+
+    # can't run it via bunx / npx since fixupPhase was skipped for node_modules
+    node node_modules/electron-builder/out/cli/cli.js \
+      --dir \
+      -c.electronDist=electron-dist \
+      -c.electronVersion=${electron.version} \
+      -c.npmRebuild=false
+
+    runHook postBuild
+  '';
+
+  postBuild = ''
+    pushd build
+    ${lib.getExe' python3Packages.icnsutil "icnsutil"} e icon.icns
+    popd
+  '';
+
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out/opt/Equibop
+    cp -r dist/*unpacked/resources $out/opt/Equibop/
+
+    for file in build/icon.icns.export/*.png; do
+      base=''${file##*/}
+      size=''${base/x*/}
+      install -Dm0644 $file $out/share/icons/hicolor/''${size}x''${size}/apps/equibop.png
+    done
+
+    install -Dm0644 build/icon.svg $out/share/icons/hicolor/scalable/apps/equibop.svg
+
+    runHook postInstall
+  '';
+
+  postFixup = ''
+    # NOTE: LD_LIBRARY_PATH is needed, because equibop raises a warning at the start
+    # and it fixes a couple of bugs
+    makeWrapper ${electron}/bin/electron $out/bin/equibop \
+      --add-flags $out/opt/Equibop/resources/app.asar \
+      ${lib.optionalString withTTS ''
+        --run 'if [[ "''${NIXOS_SPEECH:-default}" != "False" ]]; then NIXOS_SPEECH=True; else unset NIXOS_SPEECH; fi' \
+        --add-flags "\''${NIXOS_SPEECH:+--enable-speech-dispatcher}" \
+      ''} \
+      ${lib.optionalString withMiddleClickScroll "--add-flags \"--enable-blink-features=MiddleClickAutoscroll\""} \
+      --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}" \
+      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ (lib.getLib stdenv.cc.cc) ]}"
+  '';
+
+  desktopItems = makeDesktopItem {
+    name = "equibop";
+    desktopName = "Equibop";
+    exec = "equibop %U";
+    icon = "equibop";
+    startupWMClass = "Equibop";
+    genericName = "Internet Messenger";
+    keywords = [
+      "discord"
+      "equibop"
+      "electron"
+      "chat"
+    ];
+    categories = [
+      "Network"
+      "InstantMessaging"
+      "Chat"
+    ];
+  };
+
+  passthru = {
+    # fails to update node-modules FOD :/
+    # updateScript = nix-update-script {
+    #   extraArgs = [
+    #     "--subpackage"
+    #     "node-modules"
+    #   ];
+    # };
+  };
+
+  meta = {
+    description = "Custom Discord App aiming to give you better performance and improve linux support";
+    homepage = "https://github.com/Rodrigo-Matuz/Equibop";
+    changelog = "https://github.com/Rodrigo-Matuz/Equibop/commits/main";
+    license = lib.licenses.gpl3Only;
+    maintainers = with lib.maintainers; [
+      NotAShelf
+      rexies
+      PerchunPak
+    ];
+    mainProgram = "equibop";
+    # I am not confident in my ability to support Darwin, please PR if this is important to you
+    platforms = lib.platforms.linux;
+  };
+})
