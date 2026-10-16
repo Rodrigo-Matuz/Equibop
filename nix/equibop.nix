@@ -18,6 +18,7 @@
   version ? "3.3.1",
   withTTS ? true,
   withMiddleClickScroll ? false,
+  withSystemVencord ? false,
 }:
 let
   electron = electron_43;
