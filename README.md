@@ -6,6 +6,39 @@
 
 Equibop is a fork of [Vesktop](https://github.com/Vencord/Vesktop).
 
+## Rodrigo Matuz's personal fork
+
+This repository is a personal fork maintained for Rodrigo Matuz's own Linux/NixOS setup. It is not an official Equicord or Equibop distribution, and its changes are intended for personal use rather than general upstream support.
+
+The fork adds a reproducible `flake.nix` that:
+
+- Builds Equibop from the pinned source revision.
+- Embeds a pinned Equicord payload instead of downloading one at runtime.
+- Includes the Caelestia shell voice integration in Equicord while keeping Vesktop as a separate application.
+- Exposes `packages.x86_64-linux.equibop` and the default package for NixOS/Home Manager.
+
+Run the personal package directly:
+
+```sh
+nix run github:Rodrigo-Matuz/Equibop
+```
+
+Use it from a Home Manager configuration:
+
+```nix
+inputs.equibop = {
+  url = "github:Rodrigo-Matuz/Equibop";
+  inputs.nixpkgs.follows = "nixpkgs";
+  inputs.caelestia-shell.follows = "caelestia-shell";
+};
+
+home.packages = [
+  inputs.equibop.packages.${pkgs.system}.default
+];
+```
+
+Equibop stores its mutable Equicord settings under `~/.config/Equibop`; existing settings are not overwritten by the Home Manager integration.
+
 You can join our [discord server](https://equicord.org/discord) for commits, changes, chat or even support.<br></br>
 
 **Main features**:
