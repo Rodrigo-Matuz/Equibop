@@ -50,7 +50,7 @@ stdenvNoCC.mkDerivation {
 
   outputHash =
     {
-      x86_64-linux = "sha256-odQOJOv3qBYJte5RNF14o33Duxxvm0n5Fy6jfVeCg3I=";
+      x86_64-linux = "sha256-Gtsy22jI9y6a8NB/bRR4j1z1PwFlfJPzIPznr7fLb8M=";
       aarch64-linux = lib.fakeHash;
     }
     .${stdenvNoCC.hostPlatform.system}

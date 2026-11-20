@@ -5,7 +5,7 @@
   makeWrapper,
   makeDesktopItem,
   copyDesktopItems,
-  electron_43,
+  electron,
   python3Packages,
   pipewire,
   libpulseaudio,
@@ -15,14 +15,11 @@
   nodejs,
   equicord,
   src,
-  version ? "3.3.1",
+  version ? "3.3.4",
   withTTS ? true,
   withMiddleClickScroll ? false,
   withSystemVencord ? false,
 }:
-let
-  electron = electron_43;
-in
 stdenv.mkDerivation (finalAttrs: {
   pname = "equibop";
   inherit version src;
@@ -37,9 +34,6 @@ stdenv.mkDerivation (finalAttrs: {
     substituteInPlace src/main/updater.ts \
       --replace-fail 'const isOutdated = autoUpdater.checkForUpdates().then(res => Boolean(res?.isUpdateAvailable));' 'const isOutdated = false;'
 
-    # disable auto update for bun
-    substituteInPlace scripts/build/compileArrpc.mts \
-      --replace-fail -baseline ""
 
     # Pin the Equicord payload into the immutable Nix closure instead of
     # downloading the moving latest release at first launch.
@@ -118,7 +112,6 @@ stdenv.mkDerivation (finalAttrs: {
 
     bun run build
 
-    bun run compileArrpc
 
     # can't run it via bunx / npx since fixupPhase was skipped for node_modules
     node node_modules/electron-builder/out/cli/cli.js \

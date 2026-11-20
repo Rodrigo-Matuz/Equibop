@@ -13,7 +13,7 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
-      equicordVersion = "2026-10-08";
+      equicordVersion = "2026-11-20";
       equicord = pkgs.equicord.overrideAttrs (old: rec {
         pname = "equicord-caelestia";
         version = equicordVersion;
@@ -21,14 +21,14 @@
           owner = "Equicord";
           repo = "Equicord";
           tag = version;
-          hash = "sha256-38mMUaDgS0nYwrW2WceQmuHDJk1vFU1PEi7HWvNxiZk=";
+          hash = "sha256-LD0DdtnKFd8ir1CsASH8ghWaDQot9o18FVUOiuDD7IQ=";
         };
         pnpmDeps = pkgs.fetchPnpmDeps {
           pname = "equicord";
           inherit version src;
-          pnpm = pkgs.pnpm_10;
-          fetcherVersion = 3;
-          hash = "sha256-rx8z6PAlAPaZbkmg+3Vvq8OXR/yy5ZP0PmAk97ZDOSQ=";
+          pnpm = pkgs.pnpm_11;
+          fetcherVersion = 4;
+          hash = "sha256-rFxPEG/BvWUnI+nu1IAZAJxye6MRkoOGS9Afj2ksRK0=";
         };
         env = (old.env or {}) // {
           EQUICORD_HASH = version;
@@ -52,7 +52,8 @@
       });
       equibop = pkgs.callPackage ./nix/equibop.nix {
         src = ./.;
-        version = "3.3.1";
+        version = "3.3.4";
+        electron = pkgs.electron_45;
         inherit equicord;
       };
     in
